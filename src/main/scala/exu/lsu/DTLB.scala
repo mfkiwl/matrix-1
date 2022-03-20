@@ -9,30 +9,12 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PubL v2 for more details.
  */
-package matrix.vmm
+package matrix.exu
 
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import matrix.common._
-import matrix.bus.axi4._
+import matrix.vmm._
 
-class PTWReq(dataOn: Boolean = false)(implicit p: Parameters) extends MatrixBundle with MemoryOpConstants {
-  val cmd  = UInt(M_SZ.W)
-  val addr = UInt(vaddrWidth.W)
-  val data = if (dataOn) UInt() else null
-}
-
-class PTWResp(implicit p: Parameters) extends MatrixBundle {
-  val pte     = new PTE
-  val level   = UInt(log2Ceil(pgLevels).W)
-  val cause   = UInt(EXLEN.W)
-}
-
-class PTWIO(implicit p: Parameters) extends MatrixBundle {
-
-}
-
-class PTW(params: AXI4Params)(implicit p: Parameters) extends AXI4MasterNode(params, new PTWIO) {
-
-}
+class DTLB(params: TLBParams)(implicit p: Parameters) extends BaseTLB(params)
