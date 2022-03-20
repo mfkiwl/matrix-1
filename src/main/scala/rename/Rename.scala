@@ -21,11 +21,15 @@ import matrix.decode._
 import matrix.issue._
 import matrix.utils._
 
-class RenameResp(implicit p: Parameters) extends MatrixBundle {
+class RenameResp(implicit p: Parameters) extends MatrixBundle
+ with ScalarOpConstants {
   val valid     = Bool()
   val rob_id    = UInt(robIdWidth.W)
   val rsv_id    = UInt(rsvIdWidth.W)
   val micro_op  = new MicroOp
+  val csr_addr  = UInt(CSR_ADDR_SZ.W)
+  val imm_sel   = UInt(IS_SZ.W)
+  val short_imm = UInt(LONGEST_IMM_SZ.W)
   val pc        = UInt(vaddrWidth.W)
   val pred_info = new PredictorResp 
   val rs1_map   = new MapTableMeta
@@ -120,6 +124,9 @@ class Rename(implicit p: Parameters) extends MatrixModule
       resp(w).rob_id   := io.req.bits(w).rob_id
       resp(w).rsv_id   := OHToUInt(rsv_ld_selected_oh(w))
       resp(w).micro_op := io.req.bits(w).micro_op
+      resp(w).csr_addr  := io.req.bits(w).csr_addr
+      resp(w).imm_sel   := io.req.bits(w).imm_sel
+      resp(w).short_imm := io.req.bits(w).short_imm
       resp(w).pc      := io.req.bits(w).pc
       resp(w).pred_info:= io.req.bits(w).pred_info
       resp(w).rs1_map  := Mux(io.req.bits(w).micro_op.rs1_type === RT_INT,

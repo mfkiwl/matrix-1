@@ -14,9 +14,10 @@ package matrix.issue
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.config.Parameters
+import matrix.common._
+import matrix.utils._
 import matrix.ifu._
 import matrix.rename._
-import matrix.common._
 
 class IssueReadResp(implicit p: Parameters) extends MatrixBundle {
   val valid       = Bool()
@@ -46,6 +47,9 @@ class IssueReadIO(implicit p: Parameters) extends MatrixBundle {
   val int_read_from_reg = Flipped(Vec(decodeWidth*3, new RegFilesReadPortIO))
   val fp_read_from_reg = Flipped(Vec(decodeWidth*3, new RegFilesReadPortIO))
   val read_from_rob = Vec(decodeWidth*3, new IssueReadPort)
+  val read_from_csr_valid = Output(Bool())
+  val read_from_csr_addr = Output(UInt(CSR_ADDR_SZ.W))
+  val read_from_csr_data  = Input(UInt(XLEN.W))
 }
 
 class IssueRead(implicit p: Parameters) extends MatrixModule
@@ -94,6 +98,24 @@ class IssueRead(implicit p: Parameters) extends MatrixModule
     }
     rs3_in_rob(w) := Mux(rs3_hit, true.B, io.req.bits(w).rs3_map.busy)
   }
+
+  //
+  val insts_imm = WireInit(Vec(decodeWidth, UInt(XLEN.W)))
+  val is_csr = isOneOf(io.req.bits(0).micro_op.uop, Seq(UOP_SET, UOP_CLR, UOP_XCHG)) && io.req.bits(0).micro_op.rs1_type === RT_IMM
+  insts_imm(0) := {
+    val is_shift = isOneOf(io.req.bits(0).micro_op.uop, Seq(UOP_SLL, UOP_SRL, UOP_SRA)) && io.req.bits(0).micro_op.rs2_type === RT_IMM
+    Mux(is_csr, zerosExtend(io.req.bits(0).micro_op.rs1, XLEN),
+      Mux(is_shift, zerosExtend(io.req.bits(0).micro_op.rs2(25, 20), XLEN), genImm(io.req.bits(0).short_imm, io.req.bits(0).imm_sel)))
+  }
+  for (w <- 1 until decodeWidth) {
+    insts_imm(w) := {
+      val is_shift = isOneOf(io.req.bits(w).micro_op.uop, Seq(UOP_SLL, UOP_SRL, UOP_SRA)) && io.req.bits(w).micro_op.rs2_type === RT_IMM
+      Mux(is_shift, zerosExtend(io.req.bits(w).micro_op.rs2(25, 20), XLEN), genImm(io.req.bits(w).short_imm, io.req.bits(w).imm_sel))
+    }
+  }
+  io.read_from_csr_valid := io.req.bits(0).valid && io.req.valid && is_csr
+  io.read_from_csr_data := io.req.bits(0).csr_addr
+
   val resp = Reg(Valid(Vec(decodeWidth, new IssueReadResp)))
   val rs1_type = io.req.bits.map(_.micro_op.rs1_type)
   val rs2_type = io.req.bits.map(_.micro_op.rs2_type)
@@ -114,16 +136,18 @@ class IssueRead(implicit p: Parameters) extends MatrixModule
     val rs_select = Seq(rs1_in_rob, rs2_in_rob, rs3_in_rob).flatten
     val rs_type = Seq(rs1_type, rs2_type, rs3_type).flatten
     val rs_resp = ((io.read_from_rob zip io.int_read_from_reg) zip io.fp_read_from_reg zipWithIndex) map { case (((rob, ireg), freg), w) =>
-      Mux(rs_select(w), rob.data, Mux(rs_type(w) === RT_INT, ireg.data, freg.data))
+      Mux(rs_type(w) === RT_CSR, io.read_from_csr_data,
+        Mux(rs_select(w), rob.data,
+          Mux(rs_type(w) === RT_INT, ireg.data, freg.data)))
     }
     val rs_resp_group = rs_resp.grouped(decodeWidth).toSeq.flatten
     resp.bits.zipWithIndex map { case (p, w) => {
       p.rs1_busy  := rs_select(w)
-      p.rs1       := rs_resp_group(w)
+      p.rs1       := Mux(io.req.bits(w).micro_op.rs1_type === RT_IMM, insts_imm(w), rs_resp_group(w))
       p.rs2_busy  := rs_select(w + decodeWidth)
-      p.rs2       := rs_resp_group(w + decodeWidth)
+      p.rs2       := Mux(io.req.bits(w).micro_op.rs2_type === RT_IMM, insts_imm(w), rs_resp_group(w + decodeWidth))
       p.rs3_busy  := rs_select(w + 2 * decodeWidth)
-      p.rs3       := rs_resp_group(w + 2 * decodeWidth)
+      p.rs3       := Mux(io.req.bits(w).micro_op.rs3_type === RT_IMM, insts_imm(w), rs_resp_group(w + 2 * decodeWidth))
     }}
   }
   io.resp := resp

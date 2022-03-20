@@ -140,6 +140,9 @@ class Dispatch(implicit p: Parameters) extends MatrixModule
       resp(w).micro_op    := io.req.bits(w).micro_op
       resp(w).pc          := io.req.bits(w).pc
       resp(w).pred_info   := io.req.bits(w).pred_info
+      resp(w).csr_addr    := io.req.bits(w).csr_addr
+      resp(w).imm_sel     := io.req.bits(w).imm_sel
+      resp(w).short_imm   := io.req.bits(w).short_imm
       resp(w).cause       := io.req.bits(w).cause
       resp(w).rob_id      := allocator.io.resp(w).rob_id
     }

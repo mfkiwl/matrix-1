@@ -34,7 +34,7 @@ class CsrFileReadWriteIO(implicit p: Parameters) extends MatrixBundle {
   val write = Input(Bool())
   val addr  = Input(UInt(CSR_ADDR_SZ.W))
   val rdata = Output(UInt(MXLEN.W))
-  val exc   = Output(UInt(EXLEN.W))
+  val cause   = Output(UInt(EXLEN.W))
   val wdata = Input(UInt(MXLEN.W))
 }
 
@@ -581,7 +581,7 @@ class CsrFiles(implicit p: Parameters) extends MatrixModule {
       val map = for (i <- 0 until numOfPerfCounters) yield { lookup_addr(CSRs.mhpmcounter3 + i) -> !reg_mcounteren(i) }
       Mux1H(map)
     }) && (reg_priv <= PRV.S)
-  io.rw.exc := Mux(mcounteren_excp, Causes.illegal_instruction.U, 0.U)
+  io.rw.cause := Mux(mcounteren_excp, Causes.illegal_instruction.U, 0.U)
   //
   io.stall := reg_wfi
   io.status := reg_mstatus
