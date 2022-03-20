@@ -32,6 +32,12 @@ class IssueReadResp(implicit p: Parameters) extends MatrixBundle {
   val rs2         = UInt(XLEN.W)
   val rs3_busy    = Bool()
   val rs3         = UInt(XLEN.W)
+
+  //  For RAS
+  val is_jmp      = Bool()
+  val is_call     = Bool()
+  val is_ret      = Bool()
+  val is_ret_then_call = Bool()
 }
 
 class IssueReadPort(implicit p: Parameters) extends MatrixBundle {
@@ -130,8 +136,13 @@ class IssueRead(implicit p: Parameters) extends MatrixModule
       resp.bits(w).rob_id     := io.req.bits(w).rob_id
       resp.bits(w).rsv_id     := io.req.bits(w).rsv_id
       resp.bits(w).micro_op   := io.req.bits(w).micro_op
-      resp.bits(w).pred_info  := io.req.bits(w).pc
+      resp.bits(w).pred_info  := io.req.bits(w).pred_info
       resp.bits(w).pc         := io.req.bits(w).pc
+      //  TODO: Fix
+      resp.bits(w).is_jmp     := false.B
+      resp.bits(w).is_ret     := false.B
+      resp.bits(w).is_call    := false.B
+      resp.bits(w).is_ret_then_call := false.B
     }
     val rs_select = Seq(rs1_in_rob, rs2_in_rob, rs3_in_rob).flatten
     val rs_type = Seq(rs1_type, rs2_type, rs3_type).flatten

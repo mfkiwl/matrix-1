@@ -43,6 +43,7 @@ class IssueDataMeta(implicit p: Parameters) extends MatrixBundle
   val is_store    = Bool()
   val st_id       = UInt(stqIdWidth.W)
   val uop         = UInt(UOP_SZ.W)
+  val len         = Bool()
   val usign       = Bool()
   val bw          = UInt(BW_SZ.W)
   val mem_cmd     = UInt(M_SZ.W)
@@ -52,6 +53,12 @@ class IssueDataMeta(implicit p: Parameters) extends MatrixBundle
   val rd          = UInt(lregSz.W)
   val pred_info   = new PredictorResp
   val pc          = UInt(vaddrWidth.W)
+
+  //  For RAS
+  val is_jmp      = Bool()
+  val is_call     = Bool()
+  val is_ret      = Bool()
+  val is_ret_then_call = Bool()
 }
 
 class IssueSlot(implicit p: Parameters) extends MatrixBundle

@@ -27,6 +27,7 @@ class BTBReq(implicit p: Parameters) extends MatrixBundle {
 }
 
 class BTBResp(implicit p: Parameters) extends MatrixBundle {
+  val valid     = Bool()
   val tg_addr   = UInt(vaddrWidth.W)
   val meta      = new BTBMeta
 }
@@ -40,7 +41,7 @@ class BTBUpdate(implicit p: Parameters) extends MatrixBundle {
 
 class BTBIO(implicit p: Parameters) extends MatrixBundle {
   val req = Flipped(Valid(new BTBReq))
-  val resp = Valid(new BTBResp)
+  val resp = Output(new BTBResp)
   val update = Flipped(Valid(new BTBUpdate))
 }
 
@@ -129,11 +130,11 @@ class BTB(implicit p: Parameters) extends MatrixModule {
   val data_selected = Mux1H(tag_hit, read_data)
   val meta_selected = Mux1H(tag_hit, read_meta)
 
+  resp.valid := valid_selected
   resp.tg_addr := data_selected
   resp.meta := meta_selected
 
-  io.resp.valid := valid_selected
-  io.resp.bits := resp
+  io.resp := resp
 
   when (io.resp.valid && tag_hit.reduce(_|_)) {
     replace_policy.touch(set_idx)

@@ -28,6 +28,7 @@ class PredictorReq(implicit p: Parameters) extends MatrixBundle {
 }
 
 class PredictorBTBResp(implicit p: Parameters) extends MatrixBundle {
+  val valid = Bool()
   val meta  = new BTBMeta             
 }
 
@@ -48,8 +49,10 @@ class PredictorBTBUpdate(implicit p: Parameters) extends MatrixBundle {
   val meta    = new BTBMeta              
 }
 
-class PredictorLTageUpdate(implicit p: Parameters) extends LTageUpdate {
-  val valid = Bool()
+class PredictorLTageUpdate(implicit p: Parameters) extends TageUpdate {
+  val valid       = Bool()
+  val use_loop    = Bool()
+  val loop_taken  = Bool()
 }
 
 class PredictorUpdate(implicit p: Parameters) extends MatrixBundle {
@@ -79,16 +82,17 @@ class Predictor(implicit p: Parameters) extends MatrixModule {
   val s1_pc = RegEnable(io.req.bits.pc, io.req.valid)
 
   //  Stage 2
-  val next_pc = s1_pc + btb.io.resp.bits.meta.offset + Mux(btb.io.resp.bits.meta.len, 2.U, 4.U)
+  val next_pc = s1_pc + btb.io.resp.meta.offset + Mux(btb.io.resp.meta.len, 2.U, 4.U)
   ras.io.req := s1_val
-  ras.io.push := btb.io.resp.bits.meta.call | btb.io.resp.bits.meta.ret_then_call
+  ras.io.push := btb.io.resp.meta.call | btb.io.resp.meta.ret_then_call
   ras.io.push_addr := next_pc
-  ras.io.pop := btb.io.resp.bits.meta.ret | btb.io.resp.bits.meta.ret_then_call
+  ras.io.pop := btb.io.resp.meta.ret | btb.io.resp.meta.ret_then_call
 
   val resp = Wire(new PredictorResp)
-  val btbValid = btb.io.resp.valid && (btb.io.resp.bits.meta.jmp | btb.io.resp.bits.meta.condi)
-  resp.tg_addr := Mux(btbValid, btb.io.resp.bits.tg_addr, ras.io.pop_addr)
-  resp.btb.meta := btb.io.resp.bits.meta
+  val btbValid = btb.io.resp.valid && (btb.io.resp.meta.jmp | btb.io.resp.meta.condi)
+  resp.tg_addr := Mux(btbValid, btb.io.resp.tg_addr, ras.io.pop_addr)
+  resp.btb.valid := btb.io.resp.valid
+  resp.btb.meta := btb.io.resp.meta
   resp.ltage.loop := ltage.io.resp.loop
   resp.ltage.tage := ltage.io.resp.tage
 

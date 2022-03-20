@@ -18,20 +18,21 @@ import freechips.rocketchip.config.Parameters
 class ALU(implicit p: Parameters) extends BaseExecuteUnit(
   hasAlu = true
 ) {
-  val curUop = meta.uop
-  def isLUI   = curUop === UOP_LUI
-  def isADD   = curUop === UOP_ADD
-  def isSUB   = curUop === UOP_SUB
-  def isSLT   = curUop === UOP_SLT
-  def isXOR   = curUop === UOP_XOR
-  def isOR    = curUop === UOP_OR
-  def isAND   = curUop === UOP_AND
-  def isSLL   = curUop === UOP_SLL
-  def isSRL   = curUop === UOP_SRL
-  def isSRA   = curUop === UOP_SRA
-  def isSET   = curUop === UOP_SET
-  def isCLR   = curUop === UOP_CLR
-  def isXCHG  = curUop === UOP_XCHG
+  val cur_uop = meta.uop
+
+  def isLUI   = cur_uop === UOP_LUI
+  def isADD   = cur_uop === UOP_ADD
+  def isSUB   = cur_uop === UOP_SUB
+  def isSLT   = cur_uop === UOP_SLT
+  def isXOR   = cur_uop === UOP_XOR
+  def isOR    = cur_uop === UOP_OR
+  def isAND   = cur_uop === UOP_AND
+  def isSLL   = cur_uop === UOP_SLL
+  def isSRL   = cur_uop === UOP_SRL
+  def isSRA   = cur_uop === UOP_SRA
+  def isSET   = cur_uop === UOP_SET
+  def isCLR   = cur_uop === UOP_CLR
+  def isXCHG  = cur_uop === UOP_XCHG
 
   val rs2_inv = Mux(isSUB, ~rs2, rs2)
   val addsub_res = rs1 + rs2_inv + isSUB

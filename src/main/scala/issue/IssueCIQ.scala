@@ -45,12 +45,19 @@ class IssueCIQMeta(implicit p: Parameters) extends MatrixBundle
   val ld_id       = UInt(ldqIdWidth.W)
   val st_id       = UInt(stqIdWidth.W)
   val uop         = UInt(UOP_SZ.W)
+  val len         = Bool()
   val usign       = Bool()
   val bw          = UInt(BW_SZ.W)
   val mem_cmd     = UInt(M_SZ.W)
   val rd_val      = Bool()
   val rd_type     = UInt(RT_SZ.W)
   val rd          = UInt(lregSz.W)
+
+  //  For only RAS
+  val is_jmp      = Bool()
+  val is_call     = Bool()
+  val is_ret      = Bool()
+  val is_ret_then_call = Bool()
 }
 
 class IssueCIQResp(implicit p: Parameters) extends MatrixBundle
@@ -232,6 +239,7 @@ class IssueCIQ(numOfIssuePorts: Int)(implicit p: Parameters) extends MatrixModul
       issue(w).meta.ld_id     := slots_selected(w).data.ld_id
       issue(w).meta.st_id     := slots_selected(w).data.st_id
       issue(w).meta.uop       := slots_selected(w).data.uop
+      issue(w).meta.len       := slots_selected(w).data.len
       issue(w).meta.usign     := slots_selected(w).data.usign
       issue(w).meta.bw        := slots_selected(w).data.bw
       issue(w).meta.mem_cmd   := slots_selected(w).data.mem_cmd
@@ -241,6 +249,10 @@ class IssueCIQ(numOfIssuePorts: Int)(implicit p: Parameters) extends MatrixModul
       issue(w).src1           := slots_selected(w).src1.src
       issue(w).src2           := slots_selected(w).src2.src
       issue(w).src3           := slots_selected(w).src3.src
+      issue(w).meta.is_jmp    := slots_selected(w).data.is_jmp
+      issue(w).meta.is_ret    := slots_selected(w).data.is_ret
+      issue(w).meta.is_call   := slots_selected(w).data.is_call
+      issue(w).meta.is_ret_then_call := slots_selected(w).data.is_ret_then_call
       when (has_valids(w)) {
         issue_ciq(valid_slots(w)).issue
       }
