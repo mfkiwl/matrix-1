@@ -43,8 +43,8 @@ class LoopReq(implicit p: Parameters) extends MatrixBundle {
 }
 
 class LoopResp(implicit p: Parameters) extends MatrixBundle {
-  val taken     = Bool()          
-  val use_loop   = Bool()         
+  val loop_taken   = Bool()
+  val use_loop     = Bool()
 }
 
 class LoopUpdate(implicit p: Parameters) extends MatrixBundle {
@@ -123,12 +123,12 @@ class LoopPredictor(implicit p: Parameters) extends MatrixModule {
   val pred_entry = meta_array(read_idx)
 
   val loop_resp = Wire(new LoopResp)
-  loop_resp.taken := false.B
+  loop_resp.loop_taken := false.B
   loop_resp.use_loop := false.B
 
   val loop_hit = read_tag === pred_entry.tag
   when (loop_hit) {
-    loop_resp.taken := pred_entry.c_cnt < pred_entry.p_cnt
+    loop_resp.loop_taken := pred_entry.c_cnt < pred_entry.p_cnt
     loop_resp.use_loop := pred_entry.conf === bpdParams.loop.CONF_MAX.U
   }
   io.resp := RegEnable(loop_resp, io.req.valid && !io.update.valid)

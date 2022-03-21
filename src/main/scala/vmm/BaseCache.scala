@@ -199,7 +199,11 @@ abstract class BaseCache(params: CacheParams)(implicit p: Parameters) extends Ma
   io.ptw.req.valid := is_ready && (write_miss | mshr_req| wirte_queue_req)
   io.ptw.req.bits.addr := Mux(write_miss, Cat(s2_tag, s2_pc(pgOffsetWidth - 1, 0))(paddrWidth - 1, log2Ceil(params.lineBytes)),
     Mux(mshr_req, (if (mshrOn) mshr.io.ptw.req.bits.addr else 0.U), (if (params.dCache) write_queue(write_head).addr else 0.U)))
-  io.ptw.req.bits.data := (if (params.dCache) write_queue(write_head).data else 0.U)
+
+  if (params.dCache) {
+    io.ptw.req.bits.data := write_queue(write_head).data
+  }
+  // io.ptw.req.bits.data := (if (params.dCache) write_queue(write_head).data else DontCare)
   io.ptw.req.bits.cmd  := Mux(write_miss | mshr_req, M_XRD, M_XWR)
   if (mshrOn) {
     mshr.io.ptw.req.ready := is_mshr && io.ptw.req.ready

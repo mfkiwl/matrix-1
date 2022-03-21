@@ -21,11 +21,11 @@ import matrix.utils._
 case class TAGEParams (
                         ghistLength: Int = 128,
                         tableInfo: Seq[Tuple3[Int, Int, Int]] = Seq((  128,       2,     7),
-                          (  128,       4,     7),
-                          (  256,       8,     8),
-                          (  256,      16,     8),
-                          (  128,      32,     9),
-                          (  128,      64,     9)),
+                                                                    (  128,       4,     7),
+                                                                    (  256,       8,     8),
+                                                                    (  256,      16,     8),
+                                                                    (  128,      32,     9),
+                                                                    (  128,      64,     9)),
                         period: Int = 2048,
                         numOfBimEntries: Int = 2048
                       )
@@ -341,7 +341,7 @@ class Tage(implicit p: Parameters) extends MatrixModule {
 
   //  Update the tage table
   for (t <- 0 until numOfTables) {
-    val do_dec_usb = !do_alloc && (t.U < OHToUInt(update.prime_bank))
+    val do_dec_usb = !do_alloc && (t.U < update_prime_bank)
     tables(t).io.update.valid               := io.update.valid
     tables(t).io.update.bits.taken          := update.taken
     tables(t).io.update.bits.old_cnt        := update.meta(t).ctr

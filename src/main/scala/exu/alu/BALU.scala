@@ -25,7 +25,7 @@ class BALU(implicit p: Parameters) extends BaseExecuteUnit (
   def isNEQ = cur_uop === UOP_BNE
   def isLT  = cur_uop === UOP_BLT
   def isGE  = cur_uop === UOP_BGE
-  def isJAL = cur_uop === UOP_JAL
+  def isJAL = meta.is_jmp
 
   def isSUB = rs2(XLEN-1)
   val rs2_inv = Mux(isSUB, !rs2, rs2)
@@ -36,42 +36,32 @@ class BALU(implicit p: Parameters) extends BaseExecuteUnit (
   val taken = Mux(isEQ, rs1_extend === rs2_extend,
     Mux(isNEQ, rs1_extend =/= rs2_extend,
       Mux(isLT, rs1_extend < rs2_extend, rs1_extend >= rs2_extend)))
-  val pred = Mux(io.pred_info.ltage.loop.use_loop, io.pred_info.ltage.loop.taken,
-    io.pred_info.ltage.tage.prime_taken)
+  val pred = Mux(meta.is_jmp, true.B,
+    !meta.is_jmp && Mux(io.pred_info.use_loop, io.pred_info.loop_taken, io.pred_info.tage_taken))
   val direct_wrong = taken =/= pred
   val addr_wrong = tg_addr =/= io.pred_info.tg_addr && io.pred_info.btb.valid
 
+  //  TODO: Implement kill signal.
+
   //
-  val update_valid = RegInit(false.B)
   val need_update_btb = Wire(Bool())
   val need_update_ltage = Wire(Bool())
-  val the_same_block = update_valid && io.update.pc(vaddrWidth - 1, 4) === io.pc(vaddrWidth - 1, 4)
   val update_predictor = Wire(new PredictorUpdate)
-  update_predictor.pc                             := io.pc
-  update_predictor.tg_addr                        := tg_addr
-  update_predictor.btb_update.valid               := need_update_btb
-  update_predictor.btb_update.alloc               := !io.pred_info.btb.valid
-  update_predictor.btb_update.meta.offset         := io.pc(3, 0)
-  update_predictor.btb_update.meta.len            := meta.len
-  update_predictor.btb_update.meta.jmp            := meta.is_jmp
-  update_predictor.btb_update.meta.ret            := meta.is_ret
-  update_predictor.btb_update.meta.call           := meta.is_call
-  update_predictor.btb_update.meta.ret_then_call  := meta.is_ret_then_call
-  update_predictor.btb_update.meta.condi          := !isJAL
-  update_predictor.ltage_update.valid             := need_update_ltage
-  update_predictor.ltage_update.use_loop          := io.pred_info.ltage.loop.use_loop
-  update_predictor.ltage_update.loop_taken        := io.pred_info.ltage.loop.taken
-  update_predictor.ltage_update.taken             := taken
-  update_predictor.ltage_update.prime_taken       := io.pred_info.ltage.tage.prime_taken
-  update_predictor.ltage_update.alt_taken         := io.pred_info.ltage.tage.alt_taken
-  update_predictor.ltage_update.prime_bank        := io.pred_info.ltage.tage.prime_bank
-  update_predictor.ltage_update.alt_bank          := io.pred_info.ltage.tage.alt_bank
-  update_predictor.ltage_update.bim_cnt           := io.pred_info.ltage.tage.bim_cnt
-  update_predictor.ltage_update.meta              := io.pred_info.ltage.tage.meta
-  update_predictor.ltage_update.tags              := io.pred_info.ltage.tage.tags
-  update_predictor.ltage_update.banks             := io.pred_info.ltage.tage.banks
+  update_predictor.pc                      := io.pc
+  update_predictor.tg_addr                 := tg_addr
+  update_predictor.btb.valid               := need_update_btb
+  update_predictor.btb.alloc               := !io.pred_info.btb.valid
+  update_predictor.btb.meta.offset         := io.pc(3, 0)
+  update_predictor.btb.meta.len            := meta.len
+  update_predictor.btb.meta.jmp            := meta.is_jmp
+  update_predictor.btb.meta.ret            := meta.is_ret
+  update_predictor.btb.meta.call           := meta.is_call
+  update_predictor.btb.meta.ret_then_call  := meta.is_ret_then_call
+  update_predictor.btb.meta.condi          := !isJAL
+  update_predictor.btb.idx                 := io.pred_info.btb.idx
+  update_predictor.taken                   := taken
 
-  need_update_btb := !io.pred_info.btb.valid | (
+  need_update_btb := (!io.pred_info.btb.valid | (
     io.pc(3, 0) =/= io.pred_info.btb.meta.offset |
       meta.len =/= io.pred_info.btb.meta.len |
       meta.is_jmp =/= io.pred_info.btb.meta.jmp |
@@ -80,15 +70,9 @@ class BALU(implicit p: Parameters) extends BaseExecuteUnit (
       meta.is_ret_then_call =/= io.pred_info.btb.meta.ret_then_call |
       (isJAL && io.pred_info.btb.meta.condi) |
       (!isJAL && (tg_addr =/= io.pred_info.tg_addr))
-    )
-  need_update_ltage := io.req.valid && !the_same_block
+    )) && io.req.valid
+  need_update_ltage := io.req.valid
   io.update := RegNext(update_predictor)
-
-  when (flush) {
-    update_valid := false.B
-  } .otherwise {
-    update_valid := io.req.valid
-  }
 
   when (flush | kill) {
     resp.valid := false.B

@@ -29,7 +29,7 @@ class LTageResp(implicit p: Parameters) extends MatrixBundle {
 class LTageUpdate(implicit p: Parameters) extends TageUpdate {
   val use_loop   = Bool()
   val loop_taken = Bool()
-  val pc        = UInt(vaddrWidth.W)
+  val pc         = UInt(vaddrWidth.W)
 }
 
 class LTageIO(implicit p: Parameters) extends MatrixBundle {
@@ -51,15 +51,15 @@ class LTage(implicit p: Parameters) extends MatrixModule {
   loop_update.taken        := io.update.bits.taken
   loop_update.loop_taken   := io.update.bits.loop_taken
   loop_update.pc           := io.update.bits.pc
-  loop.io.update.valid    := io.update.valid
-  loop.io.update.bits     := loop_update
+  loop.io.update.valid     := io.update.valid
+  loop.io.update.bits      := loop_update
 
   val tage_update = Wire(new TageUpdate)
   tage_update.taken       := io.update.bits.taken
   tage_update.prime_bank  := io.update.bits.prime_bank
   tage_update.alt_bank    := io.update.bits.alt_bank
-  tage_update.prime_bank  := io.update.bits.prime_bank
-  tage_update.alt_bank    := io.update.bits.alt_bank
+  tage_update.prime_taken := io.update.bits.prime_taken
+  tage_update.alt_taken   := io.update.bits.alt_taken
   tage_update.bim_cnt     := io.update.bits.bim_cnt
   tage_update.meta        := io.update.bits.meta
   tage_update.tags        := io.update.bits.tags

@@ -16,7 +16,6 @@ import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import matrix.common._
 import matrix.vmm._
-import freechips.rocketchip.diplomacy._
 
 class KillReq(implicit p: Parameters) extends MatrixBundle {
   val valid = Bool()
@@ -41,7 +40,8 @@ class FetchUnitIO(implicit p: Parameters) extends MatrixBundle {
   val stall = Input(Bool())
   val sfence = Flipped(Decoupled(new SFenceReq))
   val resp = Output(new FetchUnitResp)
-  val update = Input(new PredictorUpdate)
+  val update = Flipped(Valid(new PredictorUpdate))
+  val retire = Flipped(Valid(Vec(retireWidth, new PredictorRetire)))
   val itlb_ptw = new TLBPTWIO
   val icache_ptw = new CachePTWIO(icacheParams.dCache, icacheParams.lineBits)
 }
@@ -59,22 +59,23 @@ class FetchUnit(implicit p: Parameters) extends MatrixModule with MemoryOpConsta
   val s1_pc = Reg(UInt(vaddrWidth.W))
   val s2_val = RegInit(Bool(), false.B)
   val s2_pc = Reg(UInt(vaddrWidth.W))
-
   val stall = WireInit(false.B)
 
   //=========================== Prediction ===============================//
-  val btb_taken = bpu.io.resp.bits.btb.meta.jmp |
-    bpu.io.resp.bits.btb.meta.call |
-    bpu.io.resp.bits.btb.meta.ret |
-    bpu.io.resp.bits.btb.meta.ret_then_call
-  val ltage_taken = bpu.io.resp.bits.btb.meta.condi &
-    Mux(bpu.io.resp.bits.ltage.loop.use_loop, bpu.io.resp.bits.ltage.loop.taken,
-      bpu.io.resp.bits.ltage.tage.prime_taken)
+  val btb_taken = bpu.io.resp.btb.meta.jmp |
+    bpu.io.resp.btb.meta.call |
+    bpu.io.resp.btb.meta.ret |
+    bpu.io.resp.btb.meta.ret_then_call
+  val ltage_taken = bpu.io.resp.btb.meta.condi & Mux(bpu.io.resp.use_loop,
+    bpu.io.resp.loop_taken, bpu.io.resp.tage_taken)
   val bpu_taken = btb_taken | ltage_taken
   val bpu_kill = s2_val && bpu_taken
   val kill = io.flush.valid | bpu_kill | io.kill.valid
 
+  bpu.io.kill := kill
   bpu.io.update := io.update
+  bpu.io.retire := io.retire
+  bpu.io.stall  := stall
   itlb.io.ptw <> io.itlb_ptw
   itlb.io.kill := kill
   itlb.io.sfence <> io.sfence
@@ -90,7 +91,7 @@ class FetchUnit(implicit p: Parameters) extends MatrixModule with MemoryOpConsta
   when(s0_val) {
     pc := Mux(io.flush.valid, io.flush.addr,
       Mux(io.kill.valid, io.kill.addr,
-        Mux(bpu_kill, bpu.io.resp.bits.tg_addr,
+        Mux(bpu_kill, bpu.io.resp.tg_addr,
           pc + 16.U)))
   }
   //
@@ -150,7 +151,7 @@ class FetchUnit(implicit p: Parameters) extends MatrixModule with MemoryOpConsta
   }.otherwise {
     state := next_state
   }
-  stall := io.stall | next_state =/= s_ready
+  stall := io.stall | next_state =/= s_ready | bpu.io.empty
   //=========================== Stage 1 ===============================//
   bpu.io.req.valid := s0_val
   bpu.io.req.bits.pc := pc

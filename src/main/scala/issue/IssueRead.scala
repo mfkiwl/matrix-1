@@ -61,7 +61,29 @@ class IssueReadIO(implicit p: Parameters) extends MatrixBundle {
 class IssueRead(implicit p: Parameters) extends MatrixModule
   with ScalarOpConstants {
   val io = IO(new IssueReadIO)
-  
+
+  def jalNone(uop: UInt, rs1: UInt, rs1_type: UInt, rd: UInt) = {
+    uop === UOP_JAL && rs1_type === RT_INT &&
+      (rd =/= 1.U || rd =/= 5.U) &&
+      (rs1 =/= 1.U || rs1 =/= 5.U)
+  }
+  def jalPop(uop: UInt, rs1: UInt, rs1_type: UInt, rd: UInt) = {
+    uop === UOP_JAL && rs1_type === RT_INT &&
+      (rd =/= 1.U || rd =/= 5.U) &&
+      (rs1 === 1.U || rs1 === 5.U)
+  }
+  def jalPush(uop: UInt, rs1: UInt, rs1_type: UInt, rd: UInt) = {
+    uop === UOP_JAL && rs1_type === RT_INT &&
+      (rd === 1.U || rd === 5.U) &&
+      ((rs1 =/= 1.U || rs1 =/= 5.U) || (rs1 === rd))
+  }
+  def jalPopThenPush(uop: UInt, rs1: UInt, rs1_type: UInt, rd: UInt) = {
+    uop === UOP_JAL && rs1_type === RT_INT &&
+      (rd === 1.U || rd === 5.U) &&
+      (rs1 === 1.U || rs1 === 5.U) &&
+      (rs1 === rd)
+  }
+
   val kill = WireInit(io.kill)
   val stall = WireInit(io.stall)
   //  Read from regfiles
@@ -138,11 +160,25 @@ class IssueRead(implicit p: Parameters) extends MatrixModule
       resp.bits(w).micro_op   := io.req.bits(w).micro_op
       resp.bits(w).pred_info  := io.req.bits(w).pred_info
       resp.bits(w).pc         := io.req.bits(w).pc
-      //  TODO: Fix
-      resp.bits(w).is_jmp     := false.B
-      resp.bits(w).is_ret     := false.B
-      resp.bits(w).is_call    := false.B
-      resp.bits(w).is_ret_then_call := false.B
+
+      val is_jmp = io.req.bits(w).micro_op.uop === UOP_JAL &&
+        io.req.bits(w).micro_op.rs1_type === RT_NON
+      resp.bits(w).is_jmp     := jalNone(io.req.bits(w).micro_op.uop,
+                                        io.req.bits(w).micro_op.rs1,
+                                        io.req.bits(w).micro_op.rs1_type,
+                                        io.req.bits(w).micro_op.rd) || is_jmp
+      resp.bits(w).is_ret     := jalPop(io.req.bits(w).micro_op.uop,
+                                        io.req.bits(w).micro_op.rs1,
+                                        io.req.bits(w).micro_op.rs1_type,
+                                        io.req.bits(w).micro_op.rd)
+      resp.bits(w).is_call    := jalPush(io.req.bits(w).micro_op.uop,
+                                        io.req.bits(w).micro_op.rs1,
+                                        io.req.bits(w).micro_op.rs1_type,
+                                        io.req.bits(w).micro_op.rd)
+      resp.bits(w).is_ret_then_call := jalPopThenPush(io.req.bits(w).micro_op.uop,
+                                        io.req.bits(w).micro_op.rs1,
+                                        io.req.bits(w).micro_op.rs1_type,
+                                        io.req.bits(w).micro_op.rd)
     }
     val rs_select = Seq(rs1_in_rob, rs2_in_rob, rs3_in_rob).flatten
     val rs_type = Seq(rs1_type, rs2_type, rs3_type).flatten

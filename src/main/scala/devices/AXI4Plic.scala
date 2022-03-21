@@ -99,7 +99,7 @@ class GateWay extends Module {
   val pending_inc = !pending_decr && int_edge
   val pending_dec = pending_decr && !int_edge
 
-  nxt_pending_ctr := update_saturating_counter(pending_ctr, pending_inc & !pending_dec, ctrWidth)
+  nxt_pending_ctr := updateCounter(pending_ctr, pending_inc & !pending_dec, ctrWidth)
   when (io.edge_level) {
     pending_ctr := 0.U
   } .elsewhen (pending_dec | pending_inc) {
@@ -253,7 +253,7 @@ class AXI4PlicMemoryMapRegion(params: AXI4Params, e: AXI4PlicMemoryMapRegionIO =
       write_lookup_addr(claimCompleteAddr(h))
     }}
     write_complete := write_complete_valid.reduce(_|_)
-    val which_complete = select_first(Reverse(Cat(write_complete_valid)))
+    val which_complete = selectFirstN(Reverse(Cat(write_complete_valid)))
     when (write_complete) {
       complete := 1.U << which_complete
     } .otherwise {
@@ -268,7 +268,7 @@ class AXI4PlicMemoryMapRegion(params: AXI4Params, e: AXI4PlicMemoryMapRegionIO =
     read_lookup_addr(claimCompleteAddr(h))
   }}
   read_claim := read_claim_valid.reduce(_|_)
-  val which_claim = select_first(Reverse(Cat(read_claim_valid)))
+  val which_claim = selectFirstN(Reverse(Cat(read_claim_valid)))
   val claim = Reg(UInt(nHarts.W))
   claim := Mux(rden && read_claim, which_claim, 0.U)
 

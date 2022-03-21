@@ -1,3 +1,15 @@
+/*
+ * Copyright (c) 2022 Lyn
+ * Skew is licensed under Mulan PubL v2.
+ * You can use this software according to the terms and conditions of the Mulan PubL v2.
+ * You may obtain a copy of Mulan PubL v2 at:
+ *         http://license.coscl.org.cn/MulanPubL-2.0
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PubL v2 for more details.
+ */
+
 package matrix.decode
 
 import chisel3._
@@ -351,11 +363,13 @@ class CompressedDecode(x: UInt)(implicit p: Parameters) extends MatrixBundle {
 }
 
 
-class CtrlSigs extends Bundle with ScalarOpConstants with MemoryOpConstants {
+class CtrlSigs extends Bundle
+  with ScalarOpConstants
+  with MemoryOpConstants {
   val valid       = Bool()
   val port        = UInt(PORT_SZ.W)
   val uop         = UInt(UOP_SZ.W)
-  val fp_val       = Bool()
+  val fp_val      = Bool()
   val usign       = Bool()
   val bw          = UInt(BW_SZ.W)
   val rs1_val     = Bool()
@@ -489,38 +503,41 @@ class Decode(implicit p: Parameters) extends MatrixModule {
   val kill = WireInit(io.kill)
   val stall = WireInit(io.stall)
 
-  val decoder_module = Seq.fill(decodeWidth) { Module(new Decoder) }
+  val decoder_module = Seq.fill(decodeWidth) {
+    Module(new Decoder)
+  }
   val decoders = VecInit(decoder_module.map(_.io))
   for (w <- 0 until decodeWidth) {
     decoders(w).inst := io.req.bits(w).inst
-    decoders(w).len  := io.req.bits(w).len
+    decoders(w).len := io.req.bits(w).len
     decoders(w).excp := io.req.bits(w).cause.orR
   }
 
   val valid = Wire(Bool())
-  when (kill) {
+  when(kill) {
     valid := false.B
-  } .otherwise {
+  }.otherwise {
     valid := io.req.valid
   }
 
   io.resp.valid := RegEnable(valid, !stall | kill)
   val resp = Reg(Vec(decodeWidth, new DecodeResp))
   for (w <- 0 until decodeWidth) {
-    when (kill) {
+    when(kill) {
       resp(w).valid := false.B
-    } .elsewhen (!stall && io.req.valid) {
-      resp(w).valid       := io.req.bits(w).valid
-      resp(w).micro_op    := decoders(w).micro_uop
-      resp(w).csr_addr    := decoders(w).csr_addr
-      resp(w).imm_sel     := decoders(w).imm_sel
-      resp(w).short_imm   := decoders(w).short_imm
-      resp(w).pc          := io.req.bits(w).pc
-      resp(w).pred_info   := io.req.bits(w).pred_info
-      resp(w).cause       := Mux(io.req.bits(w).cause.orR,
+    }.elsewhen(!stall && io.req.valid) {
+      resp(w).valid := io.req.bits(w).valid
+      resp(w).micro_op := decoders(w).micro_uop
+      resp(w).csr_addr := decoders(w).csr_addr
+      resp(w).imm_sel := decoders(w).imm_sel
+      resp(w).short_imm := decoders(w).short_imm
+      resp(w).pc := io.req.bits(w).pc
+      resp(w).pred_info := io.req.bits(w).pred_info
+      resp(w).cause := Mux(io.req.bits(w).cause.orR,
         io.req.bits(w).cause, decoders(w).cause)
-      resp(w).order       := io.req.bits(w).order
+      resp(w).order := io.req.bits(w).order
     }
   }
 
   io.resp := resp
+}
