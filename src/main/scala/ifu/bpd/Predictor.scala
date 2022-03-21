@@ -34,7 +34,7 @@ class PredictorBTBResp(implicit p: Parameters) extends MatrixBundle {
 
 class PredictorLTageResp(implicit p: Parameters) extends MatrixBundle {
   val loop = new LoopResp            
-  val tage = new TageData            
+  val tage = new TageResp            
 }
 
 class PredictorResp(implicit p: Parameters) extends MatrixBundle {

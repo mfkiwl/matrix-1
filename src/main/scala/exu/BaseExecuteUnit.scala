@@ -46,6 +46,8 @@ abstract class BaseExecuteUnit(
     val pc = if (hasBAlu || hasAlu) Input(UInt(vaddrWidth.W)) else null
     val resp = Output(new ExecuteUnitResp(hasFpu))
 
+    val update = if (hasBAlu) Output(new PredictorUpdate) else null
+
     val grant = if (hasLsu) Output(Bool()) else null
     val replay = if (hasLsu) Output(Bool()) else null
     val bypass = Valid(new IssueCIQBypass)

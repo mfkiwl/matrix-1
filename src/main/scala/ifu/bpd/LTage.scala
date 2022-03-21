@@ -23,7 +23,7 @@ class LTageReq(implicit p: Parameters) extends MatrixBundle {
 
 class LTageResp(implicit p: Parameters) extends MatrixBundle {
   val loop  = new LoopResp
-  val tage  = new TageData
+  val tage  = new TageResp
 }
 
 class LTageUpdate(implicit p: Parameters) extends TageUpdate {

@@ -31,26 +31,26 @@ case class TAGEParams (
                       )
 
 class TageTableResp(implicit p: Parameters) extends MatrixBundle {
-  val hit     = Bool()     
-  val ctr     = UInt(3.W)   
-  val usb     = UInt(2.W)  
-  val tag     = UInt(9.W)  
-  val bank    = UInt(8.W)  
+  val hit     = Bool()
+  val ctr     = UInt(3.W)
+  val usb     = UInt(2.W)
+  val tag     = UInt(9.W)
+  val bank    = UInt(8.W)
 }
 
 class TageTableUpdate(implicit p: Parameters) extends MatrixBundle {
-  val taken               = Bool()       
-  val old_cnt             = UInt(3.W)    
-  val old_usb             = UInt(2.W)    
-  val do_alloc            = Bool()        
-  val do_update_cnt       = Bool()       
-  val do_inc_cnt          = Bool()        
-  val do_flip_cnt         = Bool()       
-  val do_flip_cnt_lo      = Bool()       
-  val do_update_usb       = Bool()       
-  val do_inc_usb          = Bool()       
-  val tag                 = UInt(9.W)     
-  val bank                = UInt(8.W)    
+  val taken               = Bool()
+  val old_cnt             = UInt(3.W)
+  val old_usb             = UInt(2.W)
+  val do_alloc            = Bool()
+  val do_update_cnt       = Bool()
+  val do_inc_cnt          = Bool()
+  val do_flip_cnt         = Bool()
+  val do_flip_cnt_lo      = Bool()
+  val do_update_usb       = Bool()
+  val do_inc_usb          = Bool()
+  val tag                 = UInt(9.W)
+  val bank                = UInt(8.W)
 }
 
 class TageTable(numOfSets: Int, tagSize: Int, histLength: Int)(implicit p: Parameters) extends MatrixModule {
@@ -73,16 +73,16 @@ class TageTable(numOfSets: Int, tagSize: Int, histLength: Int)(implicit p: Param
   def computeTagAndIndex(unhashedIndex: UInt, hist: UInt) = {
     val hashedIndex = unhashedIndex >> log2Ceil(fetchBytes)
     val indexHistory = foldedHist(hist, log2Ceil(numOfSets))
-    val index = (hashedIndex.asUInt() ^ indexHistory)(log2Ceil(numOfSets)-1,0)
+    val index = (hashedIndex.asUInt ^ indexHistory)(log2Ceil(numOfSets)-1,0)
     val tagHistory = foldedHist(hist, tagSize)
     val tag = ((unhashedIndex >> log2Ceil(numOfSets)).asUInt() ^ tagHistory)(tagSize-1,0)
     (index, tag)
   }
 
   class Meta extends Bundle {
-    val tag = UInt(tagSize.W) 
-    val ctr = UInt(3.W)     
-    val usb = UInt(2.W)    
+    val tag = UInt(tagSize.W)
+    val ctr = UInt(3.W)
+    val usb = UInt(2.W)
   }
 
   val tagMetaSz = 2 + tagSize + 3
@@ -125,34 +125,27 @@ class TageTableMeta extends Bundle {
 }
 
 class TageReq(implicit p: Parameters) extends MatrixBundle {
-  val pc    = UInt(vaddrWidth.W)      
+  val pc    = UInt(vaddrWidth.W)
 }
 
-class TageData(implicit p: Parameters) extends MatrixBundle {
-  def size = bpdParams.tage.tableInfo.size
-  def w = if (isPow2(size)) {
-    log2Ceil(size) + 1
-  } else {
-    log2Ceil(size)
-  }
-
-  val prime_taken   = Bool()                       
-  val alt_taken     = Bool()                     
-  val prime_bank    = UInt(w.W)                    
-  val alt_bank      = UInt(w.W)                   
-  val bim_cnt       = UInt(2.W)                 
-  val meta          = Vec(size, new TageTableMeta)  
-  val tags          = Vec(size, UInt(9.W))        
-  val banks         = Vec(size, UInt(8.W))         
+class TageResp(implicit p: Parameters) extends MatrixBundle {
+  val prime_taken = Bool()
+  val prime_bank  = UInt(bpdParams.tage.tableInfo.size.W)
+  val alt_taken   = Bool()
+  val alt_bank    = UInt(bpdParams.tage.tableInfo.size.W)
+  val bim_cnt     = UInt(2.W)
+  val meta        = Vec(bpdParams.tage.tableInfo.size, new TageTableMeta)
+  val tags        = Vec(bpdParams.tage.tableInfo.size, UInt())
+  val banks       = Vec(bpdParams.tage.tableInfo.size, UInt())
 }
 
-class TageUpdate(implicit p: Parameters) extends TageData {
+class TageUpdate(implicit p: Parameters) extends TageResp {
   val taken = Bool()
 }
 
 class TageIO(implicit p: Parameters) extends MatrixBundle {
   val req = Flipped(Valid(new TageReq))
-  val resp = Output(new TageData)
+  val resp = Output(new TageResp)
   val update = Flipped(Valid(new TageUpdate))
   val update_pc = Input(UInt(vaddrWidth.W))
 }
@@ -221,6 +214,7 @@ class Tage(implicit p: Parameters) extends MatrixModule {
     indexChunks.reduce(_ ^ _)
   }
 
+
   //  Get prediction
   //  Get base prediction
   val base_idx = computeBimIndex(io.req.bits.pc, log2Ceil(bpdParams.tage.numOfBimEntries))
@@ -231,42 +225,37 @@ class Tage(implicit p: Parameters) extends MatrixModule {
   val table_resp = VecInit(tables.map(_.io.resp))
   val match_vec = table_resp.map(_.hit)
   val bank_selected_oh = selectFirstN(Reverse(Cat(match_vec)), 2)
-  val bank_selected = bank_selected_oh.map(b => Mux(!b.orR, numOfTables.U, OHToUInt(b)))
-  val (prime_bank, alt_bank) = (bank_selected(0), bank_selected(1))
+  val (prime_bank_oh, alt_bank_oh) = (bank_selected_oh(0), bank_selected_oh(1))
+  val (prime_bank, alt_bank) = (OHToUInt(prime_bank_oh), OHToUInt(alt_bank_oh))
   val tage_pred = WireInit(base_pred)
   val prime_taken = WireInit(false.B)
   val alt_taken = WireInit(false.B)
 
-  when (prime_bank < numOfTables.U) {
-    when (alt_bank === numOfTables.U) {
+  val has_valid_prime_bank = !prime_bank_oh.orR
+  val has_valid_alt_bank = !alt_bank_oh.orR
+  when (has_valid_prime_bank) {
+    when (!has_valid_alt_bank) {
       alt_taken := base_pred
     } .otherwise {
-      when (table_resp(alt_bank).ctr >= 3.U) {
-        alt_taken := true.B
-      } .otherwise {
-        alt_taken := false.B
-      }
+      alt_taken := table_resp(alt_bank).ctr >= 3.U
     }
     when (table_resp(prime_bank).ctr =/= 3.U ||
-      table_resp(prime_bank).ctr =/= 4.U ||
-      table_resp(prime_bank).usb =/= 0.U ||
-      alt_better_cnt < 8.U) {
-      when (table_resp(prime_bank).ctr >= 3.U) {
-        tage_pred := true.B
-      } .otherwise {
-        tage_pred := false.B
-      }
+    table_resp(prime_bank).ctr =/= 4.U ||
+    table_resp(prime_bank).usb =/= 0.U ||
+    alt_better_cnt < 8.U) {
+      tage_pred := table_resp(prime_bank).ctr >= 3.U
     } .otherwise {
       tage_pred := alt_taken
     }
   } .otherwise {
     alt_taken := base_pred
   }
-  val resp = Wire(new TageData)
+
+  val resp = Wire(new TageResp)
   resp.prime_taken := tage_pred
   resp.alt_taken := alt_taken
-  resp.prime_bank := prime_bank
-  resp.alt_bank := alt_bank
+  resp.prime_bank := prime_bank_oh
+  resp.alt_bank := alt_bank_oh
   for (t <- 0 until numOfTables) {
     resp.meta(t).usb := table_resp(t).usb
     resp.meta(t).ctr := table_resp(t).ctr
@@ -276,7 +265,7 @@ class Tage(implicit p: Parameters) extends MatrixModule {
   resp.bim_cnt := base_cnt
   io.resp := RegEnable(resp, io.req.valid)
 
-  //  Update
+  //============================= Update ================================//
   val update = WireInit(io.update.bits)
   val do_alloc = WireInit(false.B)
   val do_update_cnt = WireInit(false.B)
@@ -288,10 +277,12 @@ class Tage(implicit p: Parameters) extends MatrixModule {
   val do_update_bim = WireInit(false.B)
   val do_inc_bim = WireInit(false.B)
 
-  when (update.prime_bank < numOfTables.U) {
-    when (update.prime_taken =/= update.alt_taken) {
+  val update_prime_bank = OHToUInt(update.prime_bank)
+  val update_alt_bank  = OHToUInt(update.alt_bank)
+  when (!update.prime_bank.orR) {
+    when (update.prime_taken =/= update.alt_bank) {
       do_update_usb := true.B
-      do_inc_usb := update.prime_bank === update.taken
+      do_inc_usb := update.prime_taken === update.taken
     }
     do_update_cnt := true.B
     do_inc_cnt := update.taken
@@ -300,10 +291,7 @@ class Tage(implicit p: Parameters) extends MatrixModule {
     do_inc_bim := update.taken
   }
   val need_alloc = WireInit(false.B)
-  val update_prime_bank = update.prime_bank
-  val update_alt_bank = update.alt_bank
-
-  when (update.prime_bank < numOfTables.U) {
+  when (!update.prime_bank.orR) {
     when (table_resp(update_prime_bank).usb === 0.U &&
       (table_resp(update_prime_bank).ctr === 3.U ||
         table_resp(update_prime_bank).ctr === 4.U)) {
@@ -314,13 +302,12 @@ class Tage(implicit p: Parameters) extends MatrixModule {
     }
   }
 
-  //  Starting allocate a new entry
+  //  Allocate a new entry
   //  Find useful bits == 0
   val alt_usb_bank_selected_oh = selectFirstN(Reverse(Cat(resp.meta.map(_.usb === 0.U))))
-  val alt_usb_bank_selected = Mux(!alt_usb_bank_selected_oh.orR, numOfTables.U, OHToUInt(alt_usb_bank_selected_oh))
   when ((!need_alloc) || (need_alloc && (update.prime_taken =/= update.taken))) {
     when (update.prime_taken =/= update.taken) {
-      when (alt_usb_bank_selected < numOfTables.U) {
+      when (!alt_usb_bank_selected_oh.orR) {
         do_alloc := false.B
         do_update_usb := true.B
       } .otherwise {
@@ -341,41 +328,32 @@ class Tage(implicit p: Parameters) extends MatrixModule {
       total_insts := total_insts + 1.U
     }
   }
-  //  Starting update the global history
+
+  //  Update the global history
   //  If update global history
   when (io.update.valid) {
-    tage_pred_fail := io.update.bits.taken =/= io.update.bits.prime_taken
+    tage_pred_fail := update.taken =/= update.prime_taken
     latest_ghist := Cat(ghist(bpdParams.tage.ghistLength - 2, 0), !tage_pred_fail)
     ghist := latest_ghist
   } .otherwise {
     latest_ghist := ghist
   }
 
-  //  Starting update the bim table
-  val updaet_bim_idx = computeBimIndex(io.update_pc, log2Ceil(bpdParams.tage.numOfBimEntries))
-  when (io.update.valid) {
-    when (do_update_bim) {
-      bim_table(updaet_bim_idx) := updateCounter(update.bim_cnt, do_inc_bim, 2)
-    }
-  }
-  //  Starting update the tage table
+  //  Update the tage table
   for (t <- 0 until numOfTables) {
-    val do_dec_usb = !do_alloc && (t.U < update.prime_bank)
-    tables(t).io.update.valid                     := io.update.valid
-    tables(t).io.update.bits.taken                := update.taken
-    tables(t).io.update.bits.old_cnt              := update.meta(t).ctr
-    tables(t).io.update.bits.old_usb              := update.meta(t).usb
-    tables(t).io.update.bits.do_alloc             := do_alloc && (t.U === alt_usb_bank_selected)
-    tables(t).io.update.bits.do_update_cnt        := do_update_cnt
-    tables(t).io.update.bits.do_inc_cnt           := do_inc_cnt
-    tables(t).io.update.bits.do_flip_cnt          := do_flip_cnt
-    tables(t).io.update.bits.do_flip_cnt_lo       := do_flip_cnt_lo
-    tables(t).io.update.bits.do_update_usb        := do_update_usb
-    tables(t).io.update.bits.do_inc_usb           := do_inc_usb && !do_dec_usb
-    tables(t).io.update.bits.tag                  := io.update.bits.tags(t)
-    tables(t).io.update.bits.bank                 := io.update.bits.banks(t)
+    val do_dec_usb = !do_alloc && (t.U < OHToUInt(update.prime_bank))
+    tables(t).io.update.valid               := io.update.valid
+    tables(t).io.update.bits.taken          := update.taken
+    tables(t).io.update.bits.old_cnt        := update.meta(t).ctr
+    tables(t).io.update.bits.old_usb        := update.meta(t).usb
+    tables(t).io.update.bits.do_alloc       := do_alloc && (t.U === OHToUInt(alt_usb_bank_selected_oh))
+    tables(t).io.update.bits.do_update_cnt  := do_update_cnt
+    tables(t).io.update.bits.do_inc_cnt     := do_inc_cnt
+    tables(t).io.update.bits.do_flip_cnt    := do_flip_cnt
+    tables(t).io.update.bits.do_flip_cnt_lo := do_flip_cnt_lo
+    tables(t).io.update.bits.do_update_usb  := do_update_usb
+    tables(t).io.update.bits.do_inc_usb     := do_inc_usb && !do_dec_usb
+    tables(t).io.update.bits.tag            := update.tags(t)
+    tables(t).io.update.bits.bank           := update.banks(t)
   }
 }
-
-
-

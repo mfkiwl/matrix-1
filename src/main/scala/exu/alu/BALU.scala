@@ -42,12 +42,13 @@ class BALU(implicit p: Parameters) extends BaseExecuteUnit (
   val addr_wrong = tg_addr =/= io.pred_info.tg_addr && io.pred_info.btb.valid
 
   //
-  val update_predictor = Wire(new PredictorUpdate)
-  update_predictor.pc := io.pc
-  update_predictor.tg_addr := tg_addr
+  val update_valid = RegInit(false.B)
   val need_update_btb = Wire(Bool())
   val need_update_ltage = Wire(Bool())
-
+  val the_same_block = update_valid && io.update.pc(vaddrWidth - 1, 4) === io.pc(vaddrWidth - 1, 4)
+  val update_predictor = Wire(new PredictorUpdate)
+  update_predictor.pc                             := io.pc
+  update_predictor.tg_addr                        := tg_addr
   update_predictor.btb_update.valid               := need_update_btb
   update_predictor.btb_update.alloc               := !io.pred_info.btb.valid
   update_predictor.btb_update.meta.offset         := io.pc(3, 0)
@@ -70,21 +71,40 @@ class BALU(implicit p: Parameters) extends BaseExecuteUnit (
   update_predictor.ltage_update.tags              := io.pred_info.ltage.tage.tags
   update_predictor.ltage_update.banks             := io.pred_info.ltage.tage.banks
 
+  need_update_btb := !io.pred_info.btb.valid | (
+    io.pc(3, 0) =/= io.pred_info.btb.meta.offset |
+      meta.len =/= io.pred_info.btb.meta.len |
+      meta.is_jmp =/= io.pred_info.btb.meta.jmp |
+      meta.is_ret =/= io.pred_info.btb.meta.ret |
+      meta.is_call =/= io.pred_info.btb.meta.call |
+      meta.is_ret_then_call =/= io.pred_info.btb.meta.ret_then_call |
+      (isJAL && io.pred_info.btb.meta.condi) |
+      (!isJAL && (tg_addr =/= io.pred_info.tg_addr))
+    )
+  need_update_ltage := io.req.valid && !the_same_block
+  io.update := RegNext(update_predictor)
+
+  when (flush) {
+    update_valid := false.B
+  } .otherwise {
+    update_valid := io.req.valid
+  }
+
   when (flush | kill) {
     resp.valid := false.B
   } .otherwise {
-    resp.valid := io.req.valid
+    resp.valid  := io.req.valid
     resp.rob_id := io.req.meta.rob_id
-    resp.data := io.pc + Mux(meta.len, 4.U, 2.U)
-    resp.cause := 0.U
-    rd_val := io.req.meta.rd_val
-    rd_type := io.req.meta.rd_type
-    rd := io.req.meta.rd
+    resp.data   := io.pc + Mux(meta.len, 4.U, 2.U)
+    resp.cause  := 0.U
+    rd_val      := io.req.meta.rd_val
+    rd_type     := io.req.meta.rd_type
+    rd          := io.req.meta.rd
   }
 
-  io.resp := resp
-  io.bypass.valid := resp.valid && rd_val
-  io.bypass.bits.rd_type := rd_type
-  io.bypass.bits.rd := rd
-  io.bypass.bits.data := resp.data
+  io.resp                 := resp
+  io.bypass.valid         := resp.valid && rd_val
+  io.bypass.bits.rd_type  := rd_type
+  io.bypass.bits.rd       := rd
+  io.bypass.bits.data     := resp.data
 }
